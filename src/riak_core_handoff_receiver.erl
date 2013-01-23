@@ -1,6 +1,6 @@
 %% -------------------------------------------------------------------
 %%
-%% Copyright (c) 2007-2012 Basho Technologies, Inc.  All Rights Reserved.
+%% Copyright (c) 2007-2013 Basho Technologies, Inc.  All Rights Reserved.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -50,30 +50,30 @@ set_socket(Pid, Socket) ->
 init([SslOpts]) ->
     {ok, #state{ssl_opts = SslOpts,
                 tcp_mod  = if SslOpts /= [] -> ssl;
-                              true          -> gen_tcp
+                              true          -> gen_utp
                            end}}.
 
 handle_call({set_socket, Socket0}, _From, State = #state{ssl_opts = SslOpts}) ->
-    SockOpts = [{active, once}, {packet, 4}, {header, 1}],
+    SockOpts = [{active, once}, {packet, 4}, {header, 1}, binary],
     Socket = if SslOpts /= [] ->
                      {ok, Skt} = ssl:ssl_accept(Socket0, SslOpts, 30*1000),
                      ok = ssl:setopts(Skt, SockOpts),
                      Skt;
                 true ->
-                     ok = inet:setopts(Socket0, SockOpts),
+                     ok = gen_utp:setopts(Socket0, SockOpts),
                      Socket0
              end,
     {reply, ok, State#state { sock = Socket }}.
 
-handle_info({tcp_closed,_Socket},State=#state{partition=Partition,count=Count}) ->
+handle_info({utp_closed,_Socket},State=#state{partition=Partition,count=Count}) ->
     lager:info("Handoff receiver for partition ~p exited after processing ~p"
                           " objects", [Partition, Count]),
     {stop, normal, State};
-handle_info({tcp_error, _Socket, _Reason}, State=#state{partition=Partition,count=Count}) ->
+handle_info({utp_error, _Socket, _Reason}, State=#state{partition=Partition,count=Count}) ->
     lager:info("Handoff receiver for partition ~p exited after processing ~p"
                           " objects", [Partition, Count]),
     {stop, normal, State};
-handle_info({tcp, Socket, Data}, State) ->
+handle_info({utp, Socket, Data}, State) ->
     [MsgType|MsgData] = Data,
     case catch(process_message(MsgType, MsgData, State)) of
         {'EXIT', Reason} ->
@@ -82,17 +82,17 @@ handle_info({tcp, Socket, Data}, State) ->
             {stop, normal, State};
         NewState when is_record(NewState, state) ->
             InetMod = if NewState#state.ssl_opts /= [] -> ssl;
-                         true                          -> inet
+                         true                          -> gen_utp
                       end,
             InetMod:setopts(Socket, [{active, once}]),
             {noreply, NewState}
     end;
 handle_info({ssl_closed, Socket}, State) ->
-    handle_info({tcp_closed, Socket}, State);
+    handle_info({utp_closed, Socket}, State);
 handle_info({ssl_error, Socket, Reason}, State) ->
-    handle_info({tcp_error, Socket, Reason}, State);
+    handle_info({utp_error, Socket, Reason}, State);
 handle_info({ssl, Socket, Data}, State) ->
-    handle_info({tcp, Socket, Data}, State).
+    handle_info({utp, Socket, Data}, State).
 
 process_message(?PT_MSG_INIT, MsgData, State=#state{vnode_mod=VNodeMod}) ->
     <<Partition:160/integer>> = MsgData,
