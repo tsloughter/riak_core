@@ -292,7 +292,6 @@ handle_cast({reconcile_ring, RingIn}, State) ->
         false ->
             %% Compare the two rings, see if there is anything that
             %% must be done to make them equal...
-            riak_core_stat:update(gossip_received),
             riak_core_ring_manager:ring_trans(fun reconcile/2, [OtherRing]),
             {noreply, State2}
     end;
@@ -372,7 +371,6 @@ reconcile(Ring0, [OtherRing0]) ->
     case {WrongCluster, OtherStatus, Changed} of
         {true, _, _} ->
             %% TODO: Tell other node to stop gossiping to this node.
-            riak_core_stat:update(ignored_gossip),
             ignore;
         {_, down, _} ->
             %% Tell other node to rejoin the cluster.
@@ -385,7 +383,6 @@ reconcile(Ring0, [OtherRing0]) ->
             ignore;
         {_, _, new_ring} ->
             Ring3 = riak_core_ring:ring_changed(Node, Ring2),
-            riak_core_stat:update(rings_reconciled),
             log_membership_changes(Ring, Ring3),
             {reconciled_ring, Ring3};
         {_, _, _} ->

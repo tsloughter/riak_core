@@ -212,7 +212,6 @@ start_fold(TargetNode, Module, {Type, Opts}, ParentPid, SslOpts) ->
              exit({shutdown, max_concurrency});
          exit:{shutdown, timeout} ->
              %% A receive timeout during handoff
-             riak_core_stat:update(handoff_timeouts),
              ?log_fail("because of TCP recv timeout", []),
              exit({shutdown, timeout});
          exit:{shutdown, {error, Reason}} ->

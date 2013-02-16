@@ -586,28 +586,6 @@ internal_ring_changed(Node, CState) ->
     %%   -- Stops when next changes from non-empty to empty
     %%
     IsClaimant = (riak_core_ring:claimant(CState5) =:= Node),
-    WasPending = ([] /= riak_core_ring:pending_changes(CState)),
-    IsPending  = ([] /= riak_core_ring:pending_changes(CState5)),
-
-    %% Outer case statement already checks for ring_ready
-    case {IsClaimant, Changed} of
-        {true, true} ->
-            riak_core_stat:update(converge_timer_end),
-            riak_core_stat:update(converge_timer_begin);
-        {true, false} ->
-            riak_core_stat:update(converge_timer_end);
-        _ ->
-            ok
-    end,
-
-    case {IsClaimant, WasPending, IsPending} of
-        {true, false, true} ->
-            riak_core_stat:update(rebalance_timer_begin);
-        {true, true, false} ->
-            riak_core_stat:update(rebalance_timer_end);
-        _ ->
-            ok
-    end,
 
     %% Set cluster name if it is undefined
     case {IsClaimant, riak_core_ring:cluster_name(CState5)} of
